@@ -19,7 +19,10 @@ enum { AJ_PARSE_OK,
     AJ_PARSE_NUMBER_TOO_BIG,
     AJ_PARSE_MISS_QUOTATION_MARK,
     AJ_PARSE_INVALID_STRING_ESCAPE,
-    AJ_PARSE_INVALID_STRING_CHAR };
+    AJ_PARSE_INVALID_STRING_CHAR,
+    AJ_PARSE_INVALID_UNICODE_HEX,
+    AJ_PARSE_INVALID_UNICODE_SURROGATE
+};
 
 struct AJ_value {
     double n;
@@ -40,6 +43,7 @@ int AJ_parseValue(AJ_context&, AJ_value&);
 int AJ_parse(AJ_value&, const char* const);
 
 AJ_type AJ_getType(const AJ_value&);
+void AJ_setNull(AJ_value&);
 void AJ_setBool(AJ_value&, bool);
 bool AJ_getBool(const AJ_value&);
 void AJ_setNumber(AJ_value&, double);

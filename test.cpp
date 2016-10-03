@@ -174,6 +174,56 @@ void test_parse_string()
     TEST_STRING("\"\\/\b\f\n\r\t", "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"");
 }
 
+void test_parse_invalid_unicode_hex()
+{
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u0\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u01\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u012\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u/000\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\uG000\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u0/00\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u0G00\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u0/00\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u00G0\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u000/\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_HEX, "\"\\u000G\"");
+}
+
+void test_parse_invalid_unicode_surrogate()
+{
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uDBFF\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\\\\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\uDBFF\"");
+    TEST_ERROR(AJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\uE000\"");
+}
+
+void test_parse()
+{
+    test_parse_null();
+    test_parse_true_false();
+    test_parse_number();
+    test_parse_string();
+    test_parse_expect_value();
+    test_parse_invalid_value();
+    test_parse_root_not_singular();
+    test_parse_number_too_big();
+    test_parse_string_miss_quotation_mark();
+    test_parse_invalid_string_escape();
+    test_parse_invalid_string_char();
+    test_parse_invalid_unicode_hex();
+    test_parse_invalid_unicode_surrogate();
+}
+
+void test_access_null()
+{
+    AJ_value v;
+    AJ_setBool(v, true);
+    AJ_setNull(v);
+    EXPECT_EQ_INT(AJ_NULL, AJ_getType(v));
+}
+
 void test_access_bool()
 {
     AJ_value v;
@@ -234,20 +284,9 @@ void test_access_string()
     EXPECT_EQ_STRING("Hello", AJ_getString(v), AJ_getStringLength(v));
 }
 
-void test_parse()
+void test_access()
 {
-    test_parse_expect_value();
-    test_parse_invalid_value();
-    test_parse_root_not_singular();
-    test_parse_number_too_big();
-    test_parse_string_miss_quotation_mark();
-    test_parse_invalid_string_escape();
-    test_parse_invalid_string_char();
-    test_parse_null();
-    test_parse_true_false();
-    test_parse_number();
-    test_parse_string();
-
+    test_access_null();
     test_access_bool();
     test_access_number();
     test_access_string();
@@ -256,6 +295,7 @@ void test_parse()
 int main()
 {
     test_parse();
+    test_access();
     printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
     return main_ret;
 }

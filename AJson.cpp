@@ -106,8 +106,53 @@ void* AJ_contextPop(AJ_context& c, size_t size)
         *reinterpret_cast<char*>(AJ_contextPush(c, sizeof(char))) = (ch); \
     } while (0)
 
+bool AJ_parseHex4(const char*& p, unsigned& u)
+{
+    u = 0;
+    for (auto i = 0; i < 4; ++i) {
+        u <<= 4;
+        char ch = *p++;
+        if (ch >= '0' && ch <= '9')
+            u += ch - '0';
+        else if (ch >= 'a' && ch <= 'f')
+            u += ch - 'a' + 10;
+        else if (ch >= 'A' && ch <= 'F')
+            u += ch - 'A' + 10;
+        else
+            return false;
+    }
+
+    return true;
+}
+
+void AJ_encode_utf8(AJ_context& c, unsigned u)
+{
+#define outputByte(c)
+    if (u < 0x80) {
+        outputByte(0x7f & u);
+    } else if (u < 0x800) {
+        outputByte(0xc0 | ((u >> 6) & 0x1f));
+        outputByte(0x80 | (u & 0x3f));
+    } else if (u < 0x10000) {
+        outputByte(0xe0 | ((u >> 12) & 0x0f));
+        outputByte(0x80 | ((u >> 6) & 0x3f));
+        outputByte(0x80 | (u & 0x3f));
+    } else {
+        outputByte(0xf0 | ((u >> 18) & 0x03));
+        outputByte(0x80 | ((u >> 12) & 0x3f));
+        outputByte(0x80 | ((u >> 6) & 0x3f));
+        outputByte(0x80 | (u & 0x3f));
+    }
+}
+
 int AJ_parseString(AJ_context& c, AJ_value& v)
 {
+#define STRING_ERROR(ret) \
+    do {                  \
+        c.top = head;     \
+        return ret;       \
+    } while (0)
+
     size_t head = c.top, len;
     EXPECT(c, '\"');
     const char* p = c.json;
@@ -146,18 +191,30 @@ int AJ_parseString(AJ_context& c, AJ_value& v)
             case '/':
                 PUTC(c, '/');
                 break;
+            case 'u':
+                unsigned u;
+                if (!AJ_parseHex4(p, u))
+                    STRING_ERROR(AJ_PARSE_INVALID_UNICODE_HEX);
+                if (u >= 0xd800 && u <= 0xdbff) {
+                    unsigned ul;
+                    if ((*p++) == '\\' && (*p++) == '\\' && (*p++) == 'u'
+                        && AJ_parseHex4(p, ul) && ul >= 0xdc00 && ul <= 0xdfff) {
+                        u = 0x10000 | ((u & 0x7ff) << 10) | (ul & 0x3ff);
+                    } else {
+                        STRING_ERROR(AJ_PARSE_INVALID_UNICODE_SURROGATE);
+                    }
+                }
+                AJ_encode_utf8(c, u);
+                break;
             default:
-                c.top = head;
-                return AJ_PARSE_INVALID_STRING_ESCAPE;
+                STRING_ERROR(AJ_PARSE_INVALID_STRING_ESCAPE);
             }
             break;
         case '\0':
-            c.top = head;
-            return AJ_PARSE_MISS_QUOTATION_MARK;
+            STRING_ERROR(AJ_PARSE_MISS_QUOTATION_MARK);
         default:
             if (ch < 0x20) {
-                c.top = head;
-                return AJ_PARSE_INVALID_STRING_CHAR;
+                STRING_ERROR(AJ_PARSE_INVALID_STRING_CHAR);
             }
             PUTC(c, ch);
         }
@@ -208,6 +265,11 @@ int AJ_parse(AJ_value& v, const char* const json)
 AJ_type AJ_getType(const AJ_value& v)
 {
     return v.type;
+}
+
+void AJ_setNull(AJ_value& v)
+{
+    v.type = AJ_NULL;
 }
 
 void AJ_setBool(AJ_value& v, bool b)
