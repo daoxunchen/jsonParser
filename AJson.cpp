@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cerrno>
 #include <cmath>
+#include <cstring>
 
 #define EXPECT(c, ch)            \
     do {                         \
@@ -127,21 +128,20 @@ bool AJ_parseHex4(const char*& p, unsigned& u)
 
 void AJ_encode_utf8(AJ_context& c, unsigned u)
 {
-#define outputByte(c)
     if (u < 0x80) {
-        outputByte(0x7f & u);
+        PUTC(c, 0x7f & u);
     } else if (u < 0x800) {
-        outputByte(0xc0 | ((u >> 6) & 0x1f));
-        outputByte(0x80 | (u & 0x3f));
+        PUTC(c, 0xc0 | ((u >> 6) & 0x1f));
+        PUTC(c, 0x80 | (u & 0x3f));
     } else if (u < 0x10000) {
-        outputByte(0xe0 | ((u >> 12) & 0x0f));
-        outputByte(0x80 | ((u >> 6) & 0x3f));
-        outputByte(0x80 | (u & 0x3f));
+        PUTC(c, 0xe0 | ((u >> 12) & 0x0f));
+        PUTC(c, 0x80 | ((u >> 6) & 0x3f));
+        PUTC(c, 0x80 | (u & 0x3f));
     } else {
-        outputByte(0xf0 | ((u >> 18) & 0x03));
-        outputByte(0x80 | ((u >> 12) & 0x3f));
-        outputByte(0x80 | ((u >> 6) & 0x3f));
-        outputByte(0x80 | (u & 0x3f));
+        PUTC(c, 0xf0 | ((u >> 18) & 0x03));
+        PUTC(c, 0x80 | ((u >> 12) & 0x3f));
+        PUTC(c, 0x80 | ((u >> 6) & 0x3f));
+        PUTC(c, 0x80 | (u & 0x3f));
     }
 }
 
@@ -221,6 +221,41 @@ int AJ_parseString(AJ_context& c, AJ_value& v)
     }
 }
 
+int AJ_parseArray(AJ_context& c, AJ_value& v)
+{
+    EXPECT(c, '[');
+    size_t size = 0;
+	AJ_parseWhitespace(c);
+    if (*c.json == ']') {
+        c.json++;
+        v.type = AJ_ARRAY;
+        v.e = nullptr;
+        v.size = 0;
+        return AJ_PARSE_OK;
+    }
+    for (;;) {
+        int ret;
+        AJ_value e;
+	AJ_parseWhitespace(c);
+        if ((ret = AJ_parseValue(c, e)) != AJ_PARSE_OK)
+            return ret;
+        memcpy(AJ_contextPush(c, sizeof(AJ_value)), &e, sizeof(AJ_value));
+        ++size;
+        if (*c.json == ',')
+            c.json++;
+        else if (*c.json == ']') {
+            c.json++;
+            v.type = AJ_ARRAY;
+            v.size = size;
+            size *= sizeof(AJ_value);
+            memcpy(v.e = (AJ_value*)malloc(size), AJ_contextPop(c, size), size);
+            return AJ_PARSE_OK;
+
+        } else
+            return AJ_PARSE_MISS_COMMA_OR_SQUARE_BRACKET;
+    }
+}
+
 int AJ_parseValue(AJ_context& c, AJ_value& v)
 {
     switch (*c.json) {
@@ -234,6 +269,8 @@ int AJ_parseValue(AJ_context& c, AJ_value& v)
         return AJ_parseString(c, v);
     case '\0':
         return AJ_PARSE_EXPECT_VALUE;
+    case '[':
+        return AJ_parseArray(c, v);
     default:
         if (*c.json == '-' || ISDIGIT(*c.json))
             return AJ_parseNumber(c, v);
@@ -314,4 +351,17 @@ size_t AJ_getStringLength(const AJ_value& v)
 {
     assert(v.type == AJ_STRING);
     return v.s.size();
+}
+
+size_t AJ_getArraySize(const AJ_value& v)
+{
+    assert(v.type == AJ_ARRAY);
+    return v.size;
+}
+
+AJ_value* AJ_getArrayElement(const AJ_value& v, size_t index)
+{
+    assert(v.type == AJ_ARRAY);
+    assert(index < v.size);
+    return v.e + index;
 }

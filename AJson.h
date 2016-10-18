@@ -21,12 +21,15 @@ enum { AJ_PARSE_OK,
     AJ_PARSE_INVALID_STRING_ESCAPE,
     AJ_PARSE_INVALID_STRING_CHAR,
     AJ_PARSE_INVALID_UNICODE_HEX,
-    AJ_PARSE_INVALID_UNICODE_SURROGATE
+    AJ_PARSE_INVALID_UNICODE_SURROGATE,
+    AJ_PARSE_MISS_COMMA_OR_SQUARE_BRACKET
 };
 
 struct AJ_value {
     double n;
     std::string s;
+    AJ_value* e;
+    size_t size;
     AJ_type type;
 };
 
@@ -51,5 +54,7 @@ double AJ_getNumber(const AJ_value&);
 void AJ_setString(AJ_value&, const char*, size_t);
 const char* AJ_getString(const AJ_value&);
 size_t AJ_getStringLength(const AJ_value&);
+size_t AJ_getArraySize(const AJ_value&);
+AJ_value* AJ_getArrayElement(const AJ_value&, size_t);
 
 #endif /* AJson_H */

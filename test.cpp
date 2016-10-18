@@ -199,6 +199,21 @@ void test_parse_invalid_unicode_surrogate()
     TEST_ERROR(AJ_PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\uE000\"");
 }
 
+void test_parse_array()
+{
+    AJ_value v;
+    v.type = AJ_NULL;
+    EXPECT_EQ_INT(AJ_PARSE_OK, AJ_parse(v, "[ ]"));
+    EXPECT_EQ_INT(AJ_ARRAY, AJ_getType(v));
+    EXPECT_EQ_INT(0, AJ_getArraySize(v));
+    EXPECT_EQ_INT(AJ_PARSE_OK, AJ_parse(v, " [null,false,true,123, \"abc\"] "));
+    EXPECT_EQ_INT(AJ_ARRAY, AJ_getType(v));
+    EXPECT_EQ_INT(5, AJ_getArraySize(v));
+    EXPECT_EQ_INT(AJ_PARSE_OK, AJ_parse(v, "[ [],[0],[0,1],[0,1,2]]"));
+    EXPECT_EQ_INT(AJ_ARRAY, AJ_getType(v));
+    EXPECT_EQ_INT(4, AJ_getArraySize(v));
+}
+
 void test_parse()
 {
     test_parse_null();
@@ -214,6 +229,7 @@ void test_parse()
     test_parse_invalid_string_char();
     test_parse_invalid_unicode_hex();
     test_parse_invalid_unicode_surrogate();
+    test_parse_array();
 }
 
 void test_access_null()
