@@ -7,9 +7,10 @@
 #define ISDIGIT1TO9(ch) ((ch) > '0' && (ch) <= '9')
 
 namespace AJson {
+	Context Value::m_c;
+
 	ParseResult Value::parse(const char *s)
 	{
-		m_c.stack = nullptr;
 		m_c.size = m_c.top = 0;
 		m_c.json = s;
 		parseWhitespace();
@@ -23,13 +24,16 @@ namespace AJson {
 		} else {
 			m_type = VALUE_TYPE_NULL;
 		}
+		assert(m_c.top == 0);
 		free(m_c.stack);
+		m_c.stack = nullptr;
 		return res;
 	}
 
 	void Value::setString(const char *s, size_t len)
 	{
 		assert(s != nullptr || len == 0);
+		freeMem();
 		m_s.s = (char *)malloc(sizeof(char) * (len + 1));
 		memcpy(m_s.s, s, len);
 		m_s.s[len] = '\0';
@@ -76,7 +80,7 @@ namespace AJson {
 				return PARSE_INVALID_VALUE;
 		m_c.json += i;
 		m_type = type;
-		
+
 		return PARSE_OK;
 	}
 
@@ -135,7 +139,7 @@ namespace AJson {
 	ParseResult Value::parseString()
 	{
 		size_t head = m_c.top, len;
-		const char* p = ++(m_c.json);
+		const char* p = ++m_c.json;
 		for (;;) {
 			char ch = *p++;
 			switch (ch) {
@@ -203,12 +207,72 @@ namespace AJson {
 
 	ParseResult Value::parseArray()
 	{
-		return PARSE_OK;
+		++m_c.json;
+		parseWhitespace();
+		if (*m_c.json == ']') {
+			++m_c.json;
+			freeMem();
+			m_type = VALUE_TYPE_ARRAY;
+			m_a.e = nullptr;
+			m_a.size = 0;
+			return PARSE_OK;
+		}
+
+		size_t size = 0;
+		Value e;
+		ParseResult ret;
+		for (;;) {
+			if ((ret = e.parseValue()) != PARSE_OK) {
+				break;
+			}
+			memcpy(contextPush(sizeof(Value)), &e, sizeof(Value));
+			switch (e.m_type) {
+			case VALUE_TYPE_ARRAY:
+				e.m_a.e = nullptr;
+				break;
+			case VALUE_TYPE_STRING:
+				e.m_s.s = nullptr;
+				break;
+			}
+			e.m_type = VALUE_TYPE_NULL;
+			++size;
+			parseWhitespace();
+			if (*m_c.json == ',') {
+				++m_c.json;
+				parseWhitespace();
+			} else if (*m_c.json == ']') {
+				++m_c.json;
+				freeMem();
+				m_type = VALUE_TYPE_ARRAY;
+				m_a.size = size;
+				size *= sizeof(Value);
+				memcpy(m_a.e = (Value *)malloc(size), contextPop(size), size);
+				return PARSE_OK;
+			} else {				
+				ret = PARSE_MISS_COMMA_OR_SQUARE_BRACKET;
+				break;
+			}
+		}
+
+		for (size_t i = 0; i < size; ++i) {
+			((Value *)contextPop(sizeof(Value)))->freeMem();
+		}
+		return ret;
 	}
 
-	void Value::freeStr()
+	void Value::freeMem()
 	{
-		if (m_type == VALUE_TYPE_STRING) free(m_s.s);
+		switch (m_type) {
+		case VALUE_TYPE_STRING:free(m_s.s); break;
+		case VALUE_TYPE_ARRAY:
+			for (size_t i = 0; i < m_a.size; ++i)
+				(m_a.e + i)->freeMem();
+			free(m_a.e);
+			break;
+		default:
+			break;
+		}
+
 		m_type = VALUE_TYPE_NULL;
 	}
 

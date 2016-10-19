@@ -1,11 +1,10 @@
-#define CATCH_CONFIG_MAIN
+#define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
 #include "AJson.h"
-
 using namespace AJson;
 
-TEST_CASE("ParseLiteral", "[parse][literal]")
+TEST_CASE("parseLiteral", "[parse][literal]")
 {
 	Value v;
 	REQUIRE(PARSE_OK == v.parse("null"));
@@ -24,7 +23,7 @@ TEST_CASE("ParseLiteral", "[parse][literal]")
         REQUIRE(expect == v.getNumber());	\
     } while (0)
 
-TEST_CASE("ParseNumber", "[parse][number]")
+TEST_CASE("parseNumber", "[parse][number]")
 {
 	TEST_NUMBER(0.0, "0");
 	TEST_NUMBER(0.0, "-0");
@@ -69,7 +68,7 @@ TEST_CASE("ParseNumber", "[parse][number]")
         REQUIRE(VALUE_TYPE_NULL == v.type());\
     } while (0)
 
-TEST_CASE("parseExpectValue","[parse][error]")
+TEST_CASE("parseExpectValue", "[parse][error]")
 {
 	TEST_ERROR(PARSE_EXPECT_VALUE, "");
 	TEST_ERROR(PARSE_EXPECT_VALUE, "    ");
@@ -89,6 +88,10 @@ TEST_CASE("parseInvalidValue", "[parse][error]")
 	TEST_ERROR(PARSE_INVALID_VALUE, "inf");
 	TEST_ERROR(PARSE_INVALID_VALUE, "NAN");
 	TEST_ERROR(PARSE_INVALID_VALUE, "nan");
+
+	/* invalid value in array */
+	TEST_ERROR(PARSE_INVALID_VALUE, "[1,]");
+	TEST_ERROR(PARSE_INVALID_VALUE, "[\"a\", nul]");
 }
 
 TEST_CASE("parseRootNotSingular", "[parse][error]")
@@ -124,6 +127,14 @@ TEST_CASE("parseInvalidStringChar", "[parse][error]")
 {
 	TEST_ERROR(PARSE_INVALID_STRING_CHAR, "\"\x01\"");
 	TEST_ERROR(PARSE_INVALID_STRING_CHAR, "\"\x1F\"");
+}
+
+TEST_CASE("parseMissCommaOrSquareBracket", "[parse][error]")
+{
+	TEST_ERROR(PARSE_MISS_COMMA_OR_SQUARE_BRACKET, "[1");
+	TEST_ERROR(PARSE_MISS_COMMA_OR_SQUARE_BRACKET, "[1}");
+	TEST_ERROR(PARSE_MISS_COMMA_OR_SQUARE_BRACKET, "[1 2");
+	TEST_ERROR(PARSE_MISS_COMMA_OR_SQUARE_BRACKET, "[[]");
 }
 
 #define TEST_STRING(expect, json)				\
@@ -168,7 +179,29 @@ TEST_CASE("parseInvalidUnicodeSurrogate", "[parse][error]")
 	TEST_ERROR(PARSE_INVALID_UNICODE_SURROGATE, "\"\\uD800\\uE000\"");
 }
 
-TEST_CASE("AccessNull", "[access][null]")
+TEST_CASE("parseArray", "[parse][array]")
+{
+	Value v;
+	REQUIRE(PARSE_OK == v.parse("[  ]"));
+	REQUIRE(VALUE_TYPE_ARRAY == v.type());
+	REQUIRE(0 == v.getArraySize());
+	REQUIRE(PARSE_OK == v.parse("[null , false , true , 123 , \"abc\"]"));
+	REQUIRE(VALUE_TYPE_ARRAY == v.type());
+	REQUIRE(5 == v.getArraySize());
+	REQUIRE(PARSE_OK == v.parse("[[] , [ 0] , [ 0 , 1 ] , [ 0 , 1 , 2 ] ]"));
+	REQUIRE(VALUE_TYPE_ARRAY == v.type());
+	REQUIRE(4 == v.getArraySize());
+	REQUIRE(VALUE_TYPE_ARRAY == v.getArrayElement(0)->type());
+	REQUIRE(0 == v.getArrayElement(0)->getArraySize());
+	REQUIRE(VALUE_TYPE_ARRAY == v.getArrayElement(1)->type());
+	REQUIRE(1 == v.getArrayElement(1)->getArraySize());
+	REQUIRE(VALUE_TYPE_ARRAY == v.getArrayElement(2)->type());
+	REQUIRE(2 == v.getArrayElement(2)->getArraySize());
+	REQUIRE(VALUE_TYPE_ARRAY == v.getArrayElement(3)->type());
+	REQUIRE(3 == v.getArrayElement(3)->getArraySize());
+}
+
+TEST_CASE("accessNull", "[access][null]")
 {
 	Value v;
 	v.setBool(true);
@@ -176,7 +209,7 @@ TEST_CASE("AccessNull", "[access][null]")
 	REQUIRE(VALUE_TYPE_NULL == v.type());
 }
 
-TEST_CASE("AccessBool", "[access][bool]")
+TEST_CASE("accessBool", "[access][bool]")
 {
 	Value v;
 	v.setBool(true);
@@ -192,7 +225,7 @@ TEST_CASE("AccessBool", "[access][bool]")
         REQUIRE(expect == v.getNumber()); \
     } while (0)
 
-TEST_CASE("AccessNumber", "[access][Number]")
+TEST_CASE("accessNumber", "[access][Number]")
 {
 	TEST_ACCESS_NUMBER(0.0);
 	TEST_ACCESS_NUMBER(1.0);
@@ -227,7 +260,7 @@ TEST_CASE("AccessNumber", "[access][Number]")
 	TEST_ACCESS_NUMBER(-1.7976931348623157e308);
 }
 
-TEST_CASE("AccessString", "[access][string]")
+TEST_CASE("accessString", "[access][string]")
 {
 	Value v;
 	v.setString("", 0);
@@ -236,4 +269,15 @@ TEST_CASE("AccessString", "[access][string]")
 	v.setString("Hello", 5);
 	REQUIRE(sizeof("Hello") - 1 == v.getStringLength());
 	REQUIRE(memcmp("Hello", v.getString(), v.getStringLength()) == 0);
+}
+
+int main()
+{
+#ifdef AJ_MEMORY_LEAK_DETECT
+	//_CrtDumpMemoryLeaks();
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif // AJ_MEMORY_LEAK_DETECT
+	
+	int result = Catch::Session().run();
+	return result;
 }

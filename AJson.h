@@ -1,6 +1,12 @@
 #ifndef AJson_H
 #define AJson_H
 
+#define AJ_MEMORY_LEAK_DETECT
+#ifdef AJ_MEMORY_LEAK_DETECT
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
+#endif // AJ_MEMORY_LEAK_DETECT
+
 #include <cassert>
 #include <cstring>
 
@@ -33,41 +39,62 @@ namespace AJson {
 		PARSE_MISS_COMMA_OR_SQUARE_BRACKET
 	};
 
+	struct Context {
+		const char *json = nullptr;
+		char* stack = nullptr;
+		size_t size, top;
+	};
+
 	class Value {
 	public:
+		~Value() { freeMem(); }
 		ParseResult parse(const char *);
 
 		ValueType  type() const { return m_type; }
-		void setNull() { freeStr(); }
-		void setBool(bool b) 
-		{ freeStr(); m_type = b ? VALUE_TYPE_TRUE : VALUE_TYPE_FALSE; }
+		void setNull() { freeMem(); }
+		void setBool(bool b)
+		{
+			freeMem(); m_type = b ? VALUE_TYPE_TRUE : VALUE_TYPE_FALSE;
+		}
 		bool getBool() const
 		{
 			assert(m_type == VALUE_TYPE_TRUE || m_type == VALUE_TYPE_FALSE);
 			return m_type == VALUE_TYPE_TRUE;
 		}
-		void setNumber(double n) 
-		{ freeStr(); m_n = n; m_type = VALUE_TYPE_NUMBER; }
+		void setNumber(double n)
+		{
+			freeMem(); m_n = n; m_type = VALUE_TYPE_NUMBER;
+		}
 		double getNumber() const
-		{ assert(m_type == VALUE_TYPE_NUMBER); return m_n; }
+		{
+			assert(m_type == VALUE_TYPE_NUMBER); return m_n;
+		}
 		void setString(const char *, size_t);
 		const char* getString() const
-		{ assert(m_type == VALUE_TYPE_STRING); return m_s.s; }
+		{
+			assert(m_type == VALUE_TYPE_STRING); return m_s.s;
+		}
 		size_t getStringLength() const
-		{ assert(m_type == VALUE_TYPE_STRING); return m_s.len; }
+		{
+			assert(m_type == VALUE_TYPE_STRING); return m_s.len;
+		}
+		size_t getArraySize() const
+		{
+			assert(m_type == VALUE_TYPE_ARRAY); return m_a.size;
+		}
+		Value * getArrayElement(size_t index)
+		{
+			assert(m_type == VALUE_TYPE_ARRAY && index < m_a.size);
+			return m_a.e + index;
+		}
 
 	private:
 		ValueType m_type = VALUE_TYPE_NULL;
 		union {
 			double m_n;
 			struct { char *s; size_t len; } m_s;
+			struct { Value *e; size_t size; } m_a;
 		};
-
-		struct Context {
-			const char *json = nullptr;
-			char* stack = nullptr;
-			size_t size, top;
-		} m_c;
 
 		ParseResult parseValue();
 		void parseWhitespace();
@@ -75,11 +102,14 @@ namespace AJson {
 		ParseResult parseNumber();
 		ParseResult parseString();
 		ParseResult parseArray();
-		void freeStr();
-		void* contextPush(size_t);
-		void* contextPop(size_t);
-		bool parseHex4(const char*& p, unsigned& u);
+		void freeMem();
+
+		bool parseHex4(const char*&, unsigned&);
 		void encode_utf8(unsigned u);
+
+		static Context m_c;
+		static void* contextPush(size_t);
+		static void* contextPop(size_t);
 	};
 }
 
