@@ -36,7 +36,10 @@ namespace AJson {
 		PARSE_INVALID_STRING_CHAR,
 		PARSE_INVALID_UNICODE_HEX,
 		PARSE_INVALID_UNICODE_SURROGATE,
-		PARSE_MISS_COMMA_OR_SQUARE_BRACKET
+		PARSE_MISS_COMMA_OR_SQUARE_BRACKET,
+		PARSE_MISS_KEY,
+		PARSE_MISS_COLON,
+		PARSE_MISS_COMMA_OR_CURLY_BRACKET
 	};
 
 	struct Context {
@@ -44,6 +47,8 @@ namespace AJson {
 		char* stack = nullptr;
 		size_t size, top;
 	};
+
+	struct Member;
 
 	class Value {
 	public:
@@ -82,26 +87,35 @@ namespace AJson {
 		{
 			assert(m_type == VALUE_TYPE_ARRAY); return m_a.size;
 		}
-		Value * getArrayElement(size_t index)
+		Value* getArrayElement(size_t index)
 		{
 			assert(m_type == VALUE_TYPE_ARRAY && index < m_a.size);
 			return m_a.e + index;
 		}
-
+		size_t getObjectSize() const
+		{
+			assert(m_type == VALUE_TYPE_OBJECT); return m_o.size;
+		}
+		const char* getObjectKey(size_t) const;
+		size_t getObjectKeyLength(size_t) const;
+		Value* getObjectValue(size_t) const;
 	private:
 		ValueType m_type = VALUE_TYPE_NULL;
 		union {
 			double m_n;
 			struct { char *s; size_t len; } m_s;
 			struct { Value *e; size_t size; } m_a;
+			struct { Member *m; size_t size; } m_o;
 		};
 
 		ParseResult parseValue();
 		void parseWhitespace();
 		ParseResult parseLiteral(const char*, ValueType);
 		ParseResult parseNumber();
+		ParseResult parseStringRaw(char *&, size_t &);
 		ParseResult parseString();
 		ParseResult parseArray();
+		ParseResult parseObject();
 		void freeMem();
 
 		bool parseHex4(const char*&, unsigned&);
@@ -110,6 +124,12 @@ namespace AJson {
 		static Context m_c;
 		static void* contextPush(size_t);
 		static void* contextPop(size_t);
+	};
+
+	struct Member
+	{
+		char *k; size_t klen;
+		Value v;
 	};
 }
 

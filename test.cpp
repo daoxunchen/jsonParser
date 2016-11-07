@@ -137,13 +137,18 @@ TEST_CASE("parseMissCommaOrSquareBracket", "[parse][error]")
 	TEST_ERROR(PARSE_MISS_COMMA_OR_SQUARE_BRACKET, "[[]");
 }
 
+#define REQUIRE_STRING(expect, str, len)		\
+	do{											\
+		REQUIRE(sizeof(expect) - 1 == (len));	\
+		REQUIRE(memcmp(expect, str, len) == 0);	\
+	} while (0)
+
 #define TEST_STRING(expect, json)				\
     do {                                        \
         Value v;                                \
         REQUIRE(PARSE_OK == v.parse(json));		\
         REQUIRE(VALUE_TYPE_STRING == v.type());	\
-		REQUIRE(sizeof(expect) - 1 == v.getStringLength());\
-        REQUIRE(memcmp(expect, v.getString(), v.getStringLength()) == 0);\
+		REQUIRE_STRING(expect, v.getString(), v.getStringLength());\
     } while (0)
 
 TEST_CASE("ParseString", "[parse][string]")
@@ -269,6 +274,87 @@ TEST_CASE("accessString", "[access][string]")
 	v.setString("Hello", 5);
 	REQUIRE(sizeof("Hello") - 1 == v.getStringLength());
 	REQUIRE(memcmp("Hello", v.getString(), v.getStringLength()) == 0);
+}
+
+TEST_CASE("parseMissKey", "[parse][error]")
+{
+	TEST_ERROR(PARSE_MISS_KEY, "{:1,");
+	TEST_ERROR(PARSE_MISS_KEY, "{1:1,");
+	TEST_ERROR(PARSE_MISS_KEY, "{true:1,");
+	TEST_ERROR(PARSE_MISS_KEY, "{false:1,");
+	TEST_ERROR(PARSE_MISS_KEY, "{null:1,");
+	TEST_ERROR(PARSE_MISS_KEY, "{[]:1,");
+	TEST_ERROR(PARSE_MISS_KEY, "{{}:1,");
+	TEST_ERROR(PARSE_MISS_KEY, "{\"a\":1,");
+}
+
+TEST_CASE("parseMissColon", "[parse][error]")
+{
+	TEST_ERROR(PARSE_MISS_COLON, "{\"a\"}");
+	TEST_ERROR(PARSE_MISS_COLON, "{\"a\",\"b\"}");
+}
+
+TEST_CASE("parseMissCommaOrCurlyBracket", "[parse][error]")
+{
+	TEST_ERROR(PARSE_MISS_COMMA_OR_CURLY_BRACKET, "{\"a\":1");
+	TEST_ERROR(PARSE_MISS_COMMA_OR_CURLY_BRACKET, "{\"a\":1]");
+	TEST_ERROR(PARSE_MISS_COMMA_OR_CURLY_BRACKET, "{\"a\":1 \"b\"");
+	TEST_ERROR(PARSE_MISS_COMMA_OR_CURLY_BRACKET, "{\"a\":{}");
+}
+
+TEST_CASE("parseObject", "[parse][object]")
+{
+	Value v;
+	REQUIRE(PARSE_OK == v.parse(" { } "));
+	REQUIRE(VALUE_TYPE_OBJECT == v.type());
+	REQUIRE(0 == v.getObjectSize());
+
+	REQUIRE(PARSE_OK == v.parse(
+		" { "
+		"\"n\" : null , "
+		"\"f\" : false , "
+		"\"t\" : true , "
+		"\"i\" : 123 , "
+		"\"s\" : \"abc\", "
+		"\"a\" : [1, 2, 3],"
+		"\"o\" : { \"1\" : 1, \"2\" : 2, \"3\" : 3 }"
+		" } "
+	));
+	REQUIRE(VALUE_TYPE_OBJECT == v.type());
+	REQUIRE(7 == v.getObjectSize());
+	REQUIRE_STRING("n", v.getObjectKey(0), v.getObjectKeyLength(0));
+	REQUIRE(VALUE_TYPE_NULL == v.getObjectValue(0)->type());
+	REQUIRE_STRING("f", v.getObjectKey(1), v.getObjectKeyLength(1));
+	REQUIRE(VALUE_TYPE_FALSE == v.getObjectValue(1)->type());
+	REQUIRE_STRING("t", v.getObjectKey(2), v.getObjectKeyLength(2));
+	REQUIRE(VALUE_TYPE_TRUE == v.getObjectValue(2)->type());
+	REQUIRE_STRING("i", v.getObjectKey(3), v.getObjectKeyLength(3)); 
+	REQUIRE(VALUE_TYPE_NUMBER == v.getObjectValue(3)->type());
+	REQUIRE(123.0 == v.getObjectValue(3)->getNumber());
+	REQUIRE_STRING("s", v.getObjectKey(4), v.getObjectKeyLength(4));
+	REQUIRE(VALUE_TYPE_STRING == v.getObjectValue(4)->type());
+	REQUIRE_STRING("abc", v.getObjectValue(4)->getString(), v.getObjectValue(4)->getStringLength());
+
+	REQUIRE_STRING("a", v.getObjectKey(5), v.getObjectKeyLength(5));
+	REQUIRE(VALUE_TYPE_ARRAY == v.getObjectValue(5)->type());
+	REQUIRE(3 == v.getObjectValue(5)->getArraySize());
+	for (auto i = 0; i < 3; ++i) {
+		Value *e = v.getObjectValue(5)->getArrayElement(i);
+		REQUIRE(VALUE_TYPE_NUMBER == e->type());
+		REQUIRE((i + 1.0) == e->getNumber());
+	}
+	REQUIRE_STRING("o", v.getObjectKey(6), v.getObjectKeyLength(6));
+	{
+		Value* o = v.getObjectValue(6);
+		REQUIRE(VALUE_TYPE_OBJECT == o->type());
+		for (auto i = 0; i < 3; ++i) {
+			REQUIRE(('1' + i) == o->getObjectKey(i)[0]);
+			REQUIRE(1 == o->getObjectKeyLength(i));
+			Value* ov = o->getObjectValue(i);
+			REQUIRE(VALUE_TYPE_NUMBER == ov->type());
+			REQUIRE((i + 1.0) == ov->getNumber());
+		}
+	}
 }
 
 int main()

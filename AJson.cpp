@@ -3,6 +3,8 @@
 #include <cmath>
 #include <cstdlib>
 
+#include <cstdio>
+
 #define ISDIGIT(ch) ((ch) >= '0' && (ch) <= '9')
 #define ISDIGIT1TO9(ch) ((ch) > '0' && (ch) <= '9')
 
@@ -41,6 +43,23 @@ namespace AJson {
 		m_type = VALUE_TYPE_STRING;
 	}
 
+	const char* Value::getObjectKey(size_t index) const
+	{
+		assert(m_type == VALUE_TYPE_OBJECT && index < m_o.size);
+		return (m_o.m + index)->k;
+	}
+
+	size_t Value::getObjectKeyLength(size_t index) const
+	{
+		assert(m_type == VALUE_TYPE_OBJECT && index < m_o.size);
+		return (m_o.m + index)->klen;
+	}
+	Value* Value::getObjectValue(size_t index) const
+	{
+		assert(m_type == VALUE_TYPE_OBJECT && index < m_o.size);
+		return &((m_o.m + index)->v);
+	}
+
 	ParseResult Value::parseValue()
 	{
 		switch (*m_c.json) {
@@ -56,6 +75,8 @@ namespace AJson {
 			return PARSE_EXPECT_VALUE;
 		case '[':
 			return parseArray();
+		case '{':
+			return parseObject();
 		default:
 			if (*m_c.json == '-' || ISDIGIT(*m_c.json))
 				return parseNumber();
@@ -136,16 +157,17 @@ namespace AJson {
         return ret;			\
     } while (0)
 
-	ParseResult Value::parseString()
+	ParseResult Value::parseStringRaw(char *&str, size_t &len)
 	{
-		size_t head = m_c.top, len;
+		size_t head = m_c.top;
 		const char* p = ++m_c.json;
 		for (;;) {
 			char ch = *p++;
 			switch (ch) {
 			case '\"':
 				len = m_c.top - head;
-				setString((char *)contextPop(len), len);
+				//setString((char *)contextPop(len), len);
+				str = (char *)contextPop(len);
 				m_c.json = p;
 				return PARSE_OK;
 			case '\\':
@@ -205,6 +227,17 @@ namespace AJson {
 		}
 	}
 
+	ParseResult Value::parseString()
+	{
+		char *s;
+		size_t len;
+		ParseResult ret;
+		if ((ret = parseStringRaw(s, len)) == PARSE_OK) {
+			setString(s, len);
+		}
+		return ret;
+	}
+
 	ParseResult Value::parseArray()
 	{
 		++m_c.json;
@@ -233,6 +266,9 @@ namespace AJson {
 			case VALUE_TYPE_STRING:
 				e.m_s.s = nullptr;
 				break;
+			case VALUE_TYPE_OBJECT:
+				e.m_o.m = nullptr;
+				break;
 			}
 			e.m_type = VALUE_TYPE_NULL;
 			++size;
@@ -260,6 +296,86 @@ namespace AJson {
 		return ret;
 	}
 
+	ParseResult Value::parseObject()
+	{
+		++m_c.json;
+		parseWhitespace();
+		if (*m_c.json == '}') {
+			++m_c.json;
+			freeMem();
+			m_type = VALUE_TYPE_OBJECT;
+			m_o.m = nullptr;
+			m_o.size = 0;
+			return PARSE_OK;
+		}
+
+		size_t size = 0;
+		Member m;
+		ParseResult ret;
+		for (;;) {
+			char *k;
+			size_t klen;
+			if ((ret = parseStringRaw(k, klen)) != PARSE_OK) {
+				ret = PARSE_MISS_KEY;
+				break;
+			}
+			m.k = (char *)malloc(sizeof(char) * (klen + 1));
+			memcpy(m.k, k, klen);
+			m.k[klen] = '\0';
+			m.klen = klen;
+			parseWhitespace();
+			if (*m_c.json != ':') {
+				ret = PARSE_MISS_COLON;
+				free(m.k);
+				break;
+			}
+			++m_c.json;
+			parseWhitespace();
+
+			if ((ret = m.v.parseValue()) != PARSE_OK) {
+				free(m.k);
+				break;
+			}
+			memcpy(contextPush(sizeof(Member)), &m, sizeof(Member));
+			switch (m.v.m_type) {
+			case VALUE_TYPE_ARRAY:
+				m.v.m_a.e = nullptr;
+				break;
+			case VALUE_TYPE_STRING:
+				m.v.m_s.s = nullptr;
+				break;
+			case VALUE_TYPE_OBJECT:
+				m.v.m_o.m = nullptr;
+				break;
+			}
+			m.v.m_type = VALUE_TYPE_NULL;
+			++size;
+			parseWhitespace();
+			if (*m_c.json == ',') {
+				++m_c.json;
+				parseWhitespace();
+			} else if (*m_c.json == '}') {
+				++m_c.json;
+				freeMem();
+				m_type = VALUE_TYPE_OBJECT;
+				m_o.size = size;
+				size *= sizeof(Member);
+				memcpy(m_o.m = (Member *)malloc(size), contextPop(size), size);
+				return PARSE_OK;
+			} else {
+				ret = PARSE_MISS_COMMA_OR_CURLY_BRACKET;
+				break;
+			}
+		}
+
+		for (size_t i = 0; i < size; ++i) {
+			auto p = (Member *)contextPop(sizeof(Member));
+			free(p->k);
+			p->v.freeMem();
+		}
+		return ret;
+	}
+
 	void Value::freeMem()
 	{
 		switch (m_type) {
@@ -268,6 +384,13 @@ namespace AJson {
 			for (size_t i = 0; i < m_a.size; ++i)
 				(m_a.e + i)->freeMem();
 			free(m_a.e);
+			break;
+		case VALUE_TYPE_OBJECT:
+			for (size_t i = 0; i < m_o.size; ++i) {
+				(m_o.m + i)->v.freeMem();
+				free((m_o.m + i)->k);
+			}
+			free(m_o.m);
 			break;
 		default:
 			break;
