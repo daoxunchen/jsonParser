@@ -357,6 +357,21 @@ TEST_CASE("parseObject", "[parse][object]")
 	}
 }
 
+#define TEST_ROUNDTRIP(json) \
+	do{ \
+		Value v;                                \
+        REQUIRE(PARSE_OK == v.parse(json));		\
+		std::string json2=v.stringify();		\
+		REQUIRE_STRING(json, json2.c_str(), json2.length());\
+	}while(0)
+
+TEST_CASE("stringify", "[stringify]")
+{
+	TEST_ROUNDTRIP("null");
+	TEST_ROUNDTRIP("true");
+	TEST_ROUNDTRIP("false");
+}
+
 int main()
 {
 #ifdef AJ_MEMORY_LEAK_DETECT

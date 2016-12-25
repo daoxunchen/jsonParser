@@ -9,9 +9,13 @@
 
 #include <cassert>
 #include <cstring>
+#include <string>
 
 #ifndef AJ_PARSE_STACK_INIT_SIZE
 #define AJ_PARSE_STACK_INIT_SIZE 256
+#endif
+#ifndef AJ_PARSE_STRINGIFY_INIT_SIZE
+#define AJ_PARSE_STRINGIFY_INIT_SIZE 256
 #endif
 
 namespace AJson {
@@ -40,6 +44,11 @@ namespace AJson {
 		PARSE_MISS_KEY,
 		PARSE_MISS_COLON,
 		PARSE_MISS_COMMA_OR_CURLY_BRACKET
+	};
+
+	enum StringifyResult {
+		STRINGIFY_OK,
+		STRINGIFY_BAD
 	};
 
 	struct Context {
@@ -99,6 +108,8 @@ namespace AJson {
 		const char* getObjectKey(size_t) const;
 		size_t getObjectKeyLength(size_t) const;
 		Value* getObjectValue(size_t) const;
+
+		std::string stringify();
 	private:
 		ValueType m_type = VALUE_TYPE_NULL;
 		union {
@@ -116,12 +127,18 @@ namespace AJson {
 		ParseResult parseString();
 		ParseResult parseArray();
 		ParseResult parseObject();
+
+		StringifyResult stringifyValue();
+		StringifyResult stringifyString(const char *, size_t);	
+
 		void freeMem();
 
 		bool parseHex4(const char*&, unsigned&);
 		void encode_utf8(unsigned u);
+		void stringHex4(unsigned);
 
-		static Context m_c;
+		static Context s_c;
+		static char s_table[];
 		static void* contextPush(size_t);
 		static void* contextPop(size_t);
 	};

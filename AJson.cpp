@@ -2,33 +2,42 @@
 
 #include <cmath>
 #include <cstdlib>
-
-#include <cstdio>
+//#include <cstdio>
 
 #define ISDIGIT(ch) ((ch) >= '0' && (ch) <= '9')
 #define ISDIGIT1TO9(ch) ((ch) > '0' && (ch) <= '9')
+#define PUTC(ch)	\
+    do {			\
+        *static_cast<char*>(contextPush(sizeof(char))) = (ch); \
+    } while (0)
+#define PUTS(s,len)	\
+	do{				\
+		memcpy(contextPush(sizeof(char) * len), s, len); \
+	} while (0)
 
 namespace AJson {
-	Context Value::m_c;
+	Context Value::s_c;
+	char Value::s_table[] = { "0123456789ABCDEF" };
 
 	ParseResult Value::parse(const char *s)
 	{
-		m_c.size = m_c.top = 0;
-		m_c.json = s;
+		assert(s != nullptr);
+		s_c.size = s_c.top = 0;
+		s_c.json = s;
 		parseWhitespace();
 		auto res = parseValue();
 		if (res == PARSE_OK) {
 			parseWhitespace();
-			if (*m_c.json != '\0') {
+			if (*s_c.json != '\0') {
 				res = PARSE_ROOT_NOT_SINGULAR;
 				m_type = VALUE_TYPE_NULL;
 			}
 		} else {
 			m_type = VALUE_TYPE_NULL;
 		}
-		assert(m_c.top == 0);
-		free(m_c.stack);
-		m_c.stack = nullptr;
+		assert(s_c.top == 0);
+		free(s_c.stack);
+		s_c.stack = nullptr;
 		return res;
 	}
 
@@ -60,9 +69,27 @@ namespace AJson {
 		return &((m_o.m + index)->v);
 	}
 
+	std::string Value::stringify()
+	{
+		s_c.stack = static_cast<char *>(malloc(s_c.size = AJ_PARSE_STRINGIFY_INIT_SIZE));
+		s_c.top = 0;
+
+		if (stringifyValue() != STRINGIFY_OK) {
+			free(s_c.stack);
+			s_c.stack = nullptr;
+			return std::string();
+		}
+
+		PUTC('\0');
+		std::string res(s_c.stack);
+		free(s_c.stack);
+		s_c.stack = nullptr;
+		return res;
+	}
+
 	ParseResult Value::parseValue()
 	{
-		switch (*m_c.json) {
+		switch (*s_c.json) {
 		case 'n':
 			return parseLiteral("null", VALUE_TYPE_NULL);
 		case 't':
@@ -78,7 +105,7 @@ namespace AJson {
 		case '{':
 			return parseObject();
 		default:
-			if (*m_c.json == '-' || ISDIGIT(*m_c.json))
+			if (*s_c.json == '-' || ISDIGIT(*s_c.json))
 				return parseNumber();
 			return PARSE_INVALID_VALUE;
 		}
@@ -87,19 +114,19 @@ namespace AJson {
 	/* ws = *(%x20 / %x09 / %x0A / %x0D) */
 	void Value::parseWhitespace()
 	{
-		const char* p = m_c.json;
+		const char* p = s_c.json;
 		while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
 			++p;
-		m_c.json = p;
+		s_c.json = p;
 	}
 
 	ParseResult Value::parseLiteral(const char* literal, ValueType type)
 	{
 		size_t i = 1;
 		for (; literal[i]; ++i)
-			if (m_c.json[i] != literal[i])
+			if (s_c.json[i] != literal[i])
 				return PARSE_INVALID_VALUE;
-		m_c.json += i;
+		s_c.json += i;
 		m_type = type;
 
 		return PARSE_OK;
@@ -107,7 +134,7 @@ namespace AJson {
 
 	ParseResult Value::parseNumber()
 	{
-		const char* p = m_c.json;
+		const char* p = s_c.json;
 
 		if (*p == '-')
 			++p;
@@ -137,38 +164,33 @@ namespace AJson {
 		}
 
 		errno = 0;
-		m_n = strtod(m_c.json, nullptr);
+		m_n = strtod(s_c.json, nullptr);
 		if (errno == ERANGE && (m_n == HUGE_VAL || m_n == -HUGE_VAL)) {
 			return PARSE_NUMBER_TOO_BIG;
 		}
-		m_c.json = p;
+		s_c.json = p;
 		m_type = VALUE_TYPE_NUMBER;
 		return PARSE_OK;
 	}
 
-#define PUTC(ch)	\
-    do {			\
-        *reinterpret_cast<char*>(contextPush(sizeof(char))) = (ch); \
-    } while (0)
-
 #define STRING_ERROR(ret)	\
     do {					\
-        m_c.top = head;		\
+        s_c.top = head;		\
         return ret;			\
     } while (0)
 
 	ParseResult Value::parseStringRaw(char *&str, size_t &len)
 	{
-		size_t head = m_c.top;
-		const char* p = ++m_c.json;
+		size_t head = s_c.top;
+		const char* p = ++s_c.json;
 		for (;;) {
 			char ch = *p++;
 			switch (ch) {
 			case '\"':
-				len = m_c.top - head;
+				len = s_c.top - head;
 				//setString((char *)contextPop(len), len);
 				str = (char *)contextPop(len);
-				m_c.json = p;
+				s_c.json = p;
 				return PARSE_OK;
 			case '\\':
 				ch = *p++;
@@ -240,10 +262,10 @@ namespace AJson {
 
 	ParseResult Value::parseArray()
 	{
-		++m_c.json;
+		++s_c.json;
 		parseWhitespace();
-		if (*m_c.json == ']') {
-			++m_c.json;
+		if (*s_c.json == ']') {
+			++s_c.json;
 			freeMem();
 			m_type = VALUE_TYPE_ARRAY;
 			m_a.e = nullptr;
@@ -273,11 +295,11 @@ namespace AJson {
 			e.m_type = VALUE_TYPE_NULL;
 			++size;
 			parseWhitespace();
-			if (*m_c.json == ',') {
-				++m_c.json;
+			if (*s_c.json == ',') {
+				++s_c.json;
 				parseWhitespace();
-			} else if (*m_c.json == ']') {
-				++m_c.json;
+			} else if (*s_c.json == ']') {
+				++s_c.json;
 				freeMem();
 				m_type = VALUE_TYPE_ARRAY;
 				m_a.size = size;
@@ -298,10 +320,10 @@ namespace AJson {
 
 	ParseResult Value::parseObject()
 	{
-		++m_c.json;
+		++s_c.json;
 		parseWhitespace();
-		if (*m_c.json == '}') {
-			++m_c.json;
+		if (*s_c.json == '}') {
+			++s_c.json;
 			freeMem();
 			m_type = VALUE_TYPE_OBJECT;
 			m_o.m = nullptr;
@@ -324,12 +346,12 @@ namespace AJson {
 			m.k[klen] = '\0';
 			m.klen = klen;
 			parseWhitespace();
-			if (*m_c.json != ':') {
+			if (*s_c.json != ':') {
 				ret = PARSE_MISS_COLON;
 				free(m.k);
 				break;
 			}
-			++m_c.json;
+			++s_c.json;
 			parseWhitespace();
 
 			if ((ret = m.v.parseValue()) != PARSE_OK) {
@@ -351,11 +373,11 @@ namespace AJson {
 			m.v.m_type = VALUE_TYPE_NULL;
 			++size;
 			parseWhitespace();
-			if (*m_c.json == ',') {
-				++m_c.json;
+			if (*s_c.json == ',') {
+				++s_c.json;
 				parseWhitespace();
-			} else if (*m_c.json == '}') {
-				++m_c.json;
+			} else if (*s_c.json == '}') {
+				++s_c.json;
 				freeMem();
 				m_type = VALUE_TYPE_OBJECT;
 				m_o.size = size;
@@ -374,6 +396,110 @@ namespace AJson {
 			p->v.freeMem();
 		}
 		return ret;
+	}
+
+	StringifyResult Value::stringifyValue()
+	{
+		switch (m_type) {
+		case VALUE_TYPE_NULL:PUTS("null", 4); break;
+		case VALUE_TYPE_FALSE:PUTS("false", 5); break;
+		case VALUE_TYPE_TRUE:PUTS("true", 4); break;
+		case VALUE_TYPE_NUMBER: 
+			s_c.top -= 32 - sprintf(static_cast<char *>(contextPush(32)), "%.17g", m_n);
+			break;
+		case VALUE_TYPE_ARRAY:
+			PUTC('[');
+			for (size_t i = 0; i < m_a.size; i++) {
+				if (i > 0) PUTC(',');
+				StringifyResult ret = m_a.e[i].stringifyValue();
+				if (ret != STRINGIFY_OK)return ret;
+			}
+			PUTC(']');
+			break;
+		case VALUE_TYPE_STRING:
+			stringifyString(m_s.s, m_s.len);
+			break;
+		case VALUE_TYPE_OBJECT:
+			PUTC('{');
+			for (size_t i = 0; i < m_o.size; i++) {
+				if (i > 0) PUTC(',');
+				stringifyString(m_o.m[i].k, m_o.m[i].klen);
+				PUTC(':');
+				m_o.m[i].v.stringifyValue();
+			}			
+			PUTC('}');
+			break;
+		}
+		return STRINGIFY_OK;
+	}
+
+	StringifyResult Value::stringifyString(const char *s, size_t len)
+	{
+		assert(s != nullptr);
+		assert(len > 0);
+		PUTS(s, len);
+		const char *p = s;
+		for (size_t i = 0; i < len; i++) {
+			char ch = *p++;
+			if (ch < 0x20) {
+				stringHex4(ch);
+			} else if (ch & 0x80) {
+				unsigned j = 1, u;
+				while (ch & (0x1 << (6 - j)))++j;
+				u = ch & ~(0xff << (6 - j));
+				i += 3;
+				while (j--) {
+					u <<= 6;
+					u |= (*p++) & 0x3f;
+				}
+				if (u >= 0x10000) {
+					stringHex4(((u - 0x10000) >> 10) - 0xd800);	// high
+					u = (u & 0xffff) - 0xdc00;	// low
+				}
+				stringHex4(u);
+			} else {
+				switch (ch) {
+				case '\"':
+					PUTS("\\\"", 2);
+					break;
+				case '\\':
+					PUTS("\\\\", 2);
+					break;
+				case '\b':
+					PUTS("\\b", 2);
+					break;
+				case '\f':
+					PUTS("\\f", 2);
+					break;
+				case '\r':
+					PUTS("\\r", 2);
+					break;
+				case '\t':
+					PUTS("\\t", 2);
+					break;
+				case '\n':
+					PUTS("\\n", 2);
+					break;
+				case '\/':
+					PUTS("\\\/", 2);
+					break;
+				default:
+					PUTC(ch);
+					break;
+				}
+			}		
+		}
+		return STRINGIFY_OK;
+	}
+
+	void Value::stringHex4(unsigned u)
+	{
+		char ustr[6] = { '\\','u' };
+		ustr[2] = s_table[(u >> 12) & 0xf];
+		ustr[3] = s_table[(u >> 8) & 0xf];
+		ustr[4] = s_table[(u >> 4) & 0xf];
+		ustr[5] = s_table[u & 0xf];
+		PUTS(ustr, 6);
 	}
 
 	void Value::freeMem()
@@ -402,22 +528,22 @@ namespace AJson {
 	void* Value::contextPush(size_t size)
 	{
 		assert(size > 0);
-		if (m_c.top + size >= m_c.size) {
-			if (m_c.size == 0)
-				m_c.size = AJ_PARSE_STACK_INIT_SIZE;
-			while (m_c.top + size > m_c.size)
-				m_c.size += m_c.size >> 1;
-			m_c.stack = (char *)realloc(m_c.stack, m_c.size);
+		if (s_c.top + size >= s_c.size) {
+			if (s_c.size == 0)
+				s_c.size = AJ_PARSE_STACK_INIT_SIZE;
+			while (s_c.top + size > s_c.size)
+				s_c.size += s_c.size >> 1;
+			s_c.stack = (char *)realloc(s_c.stack, s_c.size);
 		}
-		void* res = m_c.stack + m_c.top;
-		m_c.top += size;
+		void* res = s_c.stack + s_c.top;
+		s_c.top += size;
 		return res;
 	}
 
 	void* Value::contextPop(size_t size)
 	{
-		assert(m_c.top >= size);
-		return m_c.stack + (m_c.top -= size);
+		assert(s_c.top >= size);
+		return s_c.stack + (s_c.top -= size);
 	}
 
 	bool Value::parseHex4(const char*& p, unsigned& u)
