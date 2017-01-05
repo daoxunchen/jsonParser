@@ -90,20 +90,13 @@ namespace AJson {
 	ParseResult Value::parseValue()
 	{
 		switch (*s_c.json) {
-		case 'n':
-			return parseLiteral("null", VALUE_TYPE_NULL);
-		case 't':
-			return parseLiteral("true", VALUE_TYPE_TRUE);
-		case 'f':
-			return parseLiteral("false", VALUE_TYPE_FALSE);
-		case '\"':
-			return parseString();
-		case '\0':
-			return PARSE_EXPECT_VALUE;
-		case '[':
-			return parseArray();
-		case '{':
-			return parseObject();
+		case 'n': return parseLiteral("null", VALUE_TYPE_NULL);
+		case 't': return parseLiteral("true", VALUE_TYPE_TRUE);
+		case 'f': return parseLiteral("false", VALUE_TYPE_FALSE);
+		case '\"': return parseString();
+		case '\0': return PARSE_EXPECT_VALUE;
+		case '[': return parseArray();
+		case '{': return parseObject();
 		default:
 			if (*s_c.json == '-' || ISDIGIT(*s_c.json))
 				return parseNumber();
@@ -195,30 +188,14 @@ namespace AJson {
 			case '\\':
 				ch = *p++;
 				switch (ch) {
-				case '"':
-					PUTC('\"');
-					break;
-				case '\\':
-					PUTC('\\');
-					break;
-				case 'b':
-					PUTC('\b');
-					break;
-				case 'f':
-					PUTC('\f');
-					break;
-				case 'r':
-					PUTC('\r');
-					break;
-				case 't':
-					PUTC('\t');
-					break;
-				case 'n':
-					PUTC('\n');
-					break;
-				case '/':
-					PUTC('/');
-					break;
+				case '"': PUTC('\"'); break;
+				case '\\': PUTC('\\'); break;
+				case 'b': PUTC('\b'); break;
+				case 'f': PUTC('\f'); break;
+				case 'r': PUTC('\r'); break;
+				case 't': PUTC('\t'); break;
+				case 'n': PUTC('\n'); break;
+				case '/': PUTC('/'); break;
 				case 'u':
 					unsigned u;
 					if (!parseHex4(p, u))
@@ -234,12 +211,10 @@ namespace AJson {
 					}
 					encode_utf8(u);
 					break;
-				default:
-					STRING_ERROR(PARSE_INVALID_STRING_ESCAPE);
+				default: STRING_ERROR(PARSE_INVALID_STRING_ESCAPE);
 				}
 				break;
-			case '\0':
-				STRING_ERROR(PARSE_MISS_QUOTATION_MARK);
+			case '\0': STRING_ERROR(PARSE_MISS_QUOTATION_MARK);
 			default:
 				if (ch < 0x20) {
 					STRING_ERROR(PARSE_INVALID_STRING_CHAR);
@@ -416,9 +391,7 @@ namespace AJson {
 			}
 			PUTC(']');
 			break;
-		case VALUE_TYPE_STRING:
-			stringifyString(m_s.s, m_s.len);
-			break;
+		case VALUE_TYPE_STRING: stringifyString(m_s.s, m_s.len); break;
 		case VALUE_TYPE_OBJECT:
 			PUTC('{');
 			for (size_t i = 0; i < m_o.size; i++) {
@@ -437,7 +410,7 @@ namespace AJson {
 	{
 		assert(s != nullptr);
 		assert(len > 0);
-		PUTS(s, len);
+		PUTC('"');
 		const char *p = s;
 		for (size_t i = 0; i < len; i++) {
 			char ch = *p++;
@@ -459,36 +432,18 @@ namespace AJson {
 				stringHex4(u);
 			} else {
 				switch (ch) {
-				case '\"':
-					PUTS("\\\"", 2);
-					break;
-				case '\\':
-					PUTS("\\\\", 2);
-					break;
-				case '\b':
-					PUTS("\\b", 2);
-					break;
-				case '\f':
-					PUTS("\\f", 2);
-					break;
-				case '\r':
-					PUTS("\\r", 2);
-					break;
-				case '\t':
-					PUTS("\\t", 2);
-					break;
-				case '\n':
-					PUTS("\\n", 2);
-					break;
-				case '\/':
-					PUTS("\\\/", 2);
-					break;
-				default:
-					PUTC(ch);
-					break;
+				case '\"': PUTS("\\\"", 2); break;
+				case '\\': PUTS("\\\\", 2); break;
+				case '\b': PUTS("\\b", 2); break;
+				case '\f': PUTS("\\f", 2); break;
+				case '\r': PUTS("\\r", 2); break;
+				case '\t': PUTS("\\t", 2); break;
+				case '\n': PUTS("\\n", 2); break;
+				default: PUTC(ch); break;
 				}
 			}		
 		}
+		PUTC('"');
 		return STRINGIFY_OK;
 	}
 

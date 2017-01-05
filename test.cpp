@@ -380,5 +380,18 @@ int main()
 #endif // AJ_MEMORY_LEAK_DETECT
 	
 	int result = Catch::Session().run();
+
+	Value a;
+	a.parse(" { "
+		"\"n\" : null , "
+		"\"f\" : false , "
+		"\"t\" : true , "
+		"\"i\" : 123 , "
+		"\"s\" : \"abc\", "
+		"\"a\" : [1, 2, 3],"
+		"\"o\" : { \"1\" : 1, \"2\" : 2, \"3\" : 3 }"
+		" } ");
+	printf("%s\n", a.stringify().c_str());
+
 	return result;
 }
