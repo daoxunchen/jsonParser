@@ -416,7 +416,7 @@ namespace AJson {
 			char ch = *p++;
 			if (ch < 0x20) {
 				stringHex4(ch);
-			} else if (ch & 0x80) {
+			/*} else if (ch & 0x80) {
 				unsigned j = 1, u;
 				while (ch & (0x1 << (6 - j)))++j;
 				u = ch & ~(0xff << (6 - j));
@@ -429,7 +429,7 @@ namespace AJson {
 					stringHex4(((u - 0x10000) >> 10) - 0xd800);	// high
 					u = (u & 0xffff) - 0xdc00;	// low
 				}
-				stringHex4(u);
+				stringHex4(u);*/
 			} else {
 				switch (ch) {
 				case '\"': PUTS("\\\"", 2); break;
