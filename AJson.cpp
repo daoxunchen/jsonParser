@@ -223,7 +223,7 @@ namespace AJson {
 				break;
 			case '\0': STRING_ERROR(PARSE_MISS_QUOTATION_MARK);
 			default:
-				if (ch < 0x20) {
+				if (static_cast<unsigned char>(ch) < 0x20) {
 					STRING_ERROR(PARSE_INVALID_STRING_CHAR);
 				}
 				PUTC(ch);
