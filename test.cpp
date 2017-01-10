@@ -1,6 +1,12 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
+#define AJ_MEMORY_LEAK_DETECT
+#ifdef AJ_MEMORY_LEAK_DETECT
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
+#endif // AJ_MEMORY_LEAK_DETECT
+
 #include "AJson.h"
 using namespace AJson;
 
@@ -372,6 +378,11 @@ TEST_CASE("stringify", "[stringify]")
 	TEST_ROUNDTRIP("false");
 }
 
+void aaa(const Value &a)
+{
+	a.stringify();
+}
+
 int main()
 {
 #ifdef AJ_MEMORY_LEAK_DETECT
@@ -392,6 +403,6 @@ int main()
 		"\"o\" : { \"1\" : 1, \"2\" : 2, \"3\" : 3 }"
 		" } ");
 	printf("%s\n", a.stringify().c_str());
-
+	aaa(a);
 	return result;
 }

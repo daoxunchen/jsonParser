@@ -63,13 +63,20 @@ namespace AJson {
 		assert(m_type == VALUE_TYPE_OBJECT && index < m_o.size);
 		return (m_o.m + index)->klen;
 	}
+
+	Value* Value::getObjectValue(size_t index)
+	{
+		assert(m_type == VALUE_TYPE_OBJECT && index < m_o.size);
+		return &((m_o.m + index)->v);
+	}
+
 	Value* Value::getObjectValue(size_t index) const
 	{
 		assert(m_type == VALUE_TYPE_OBJECT && index < m_o.size);
 		return &((m_o.m + index)->v);
 	}
 
-	std::string Value::stringify()
+	std::string Value::stringify() const
 	{
 		s_c.stack = static_cast<char *>(malloc(s_c.size = AJ_PARSE_STRINGIFY_INIT_SIZE));
 		s_c.top = 0;
@@ -266,6 +273,8 @@ namespace AJson {
 			case VALUE_TYPE_OBJECT:
 				e.m_o.m = nullptr;
 				break;
+			default:
+				break;
 			}
 			e.m_type = VALUE_TYPE_NULL;
 			++size;
@@ -344,6 +353,8 @@ namespace AJson {
 			case VALUE_TYPE_OBJECT:
 				m.v.m_o.m = nullptr;
 				break;
+			default:
+				break;
 			}
 			m.v.m_type = VALUE_TYPE_NULL;
 			++size;
@@ -373,7 +384,7 @@ namespace AJson {
 		return ret;
 	}
 
-	StringifyResult Value::stringifyValue()
+	StringifyResult Value::stringifyValue() const
 	{
 		switch (m_type) {
 		case VALUE_TYPE_NULL:PUTS("null", 4); break;
@@ -406,7 +417,7 @@ namespace AJson {
 		return STRINGIFY_OK;
 	}
 
-	StringifyResult Value::stringifyString(const char *s, size_t len)
+	StringifyResult Value::stringifyString(const char *s, size_t len) const
 	{
 		assert(s != nullptr);
 		assert(len > 0);
@@ -415,21 +426,12 @@ namespace AJson {
 		for (size_t i = 0; i < len; i++) {
 			char ch = *p++;
 			if (ch < 0x20) {
-				stringHex4(ch);
-			/*} else if (ch & 0x80) {
-				unsigned j = 1, u;
-				while (ch & (0x1 << (6 - j)))++j;
-				u = ch & ~(0xff << (6 - j));
-				i += 3;
-				while (j--) {
-					u <<= 6;
-					u |= (*p++) & 0x3f;
-				}
-				if (u >= 0x10000) {
-					stringHex4(((u - 0x10000) >> 10) - 0xd800);	// high
-					u = (u & 0xffff) - 0xdc00;	// low
-				}
-				stringHex4(u);*/
+				char ustr[6] = { '\\','u' };
+				ustr[2] = s_table[(ch >> 12) & 0xf];
+				ustr[3] = s_table[(ch >> 8) & 0xf];
+				ustr[4] = s_table[(ch >> 4) & 0xf];
+				ustr[5] = s_table[ch & 0xf];
+				PUTS(ustr, 6);
 			} else {
 				switch (ch) {
 				case '\"': PUTS("\\\"", 2); break;
@@ -445,16 +447,6 @@ namespace AJson {
 		}
 		PUTC('"');
 		return STRINGIFY_OK;
-	}
-
-	void Value::stringHex4(unsigned u)
-	{
-		char ustr[6] = { '\\','u' };
-		ustr[2] = s_table[(u >> 12) & 0xf];
-		ustr[3] = s_table[(u >> 8) & 0xf];
-		ustr[4] = s_table[(u >> 4) & 0xf];
-		ustr[5] = s_table[u & 0xf];
-		PUTS(ustr, 6);
 	}
 
 	void Value::freeMem()

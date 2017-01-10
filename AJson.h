@@ -1,12 +1,6 @@
 #ifndef AJson_H
 #define AJson_H
 
-#define AJ_MEMORY_LEAK_DETECT
-#ifdef AJ_MEMORY_LEAK_DETECT
-#define _CRTDBG_MAP_ALLOC
-#include <crtdbg.h>
-#endif // AJ_MEMORY_LEAK_DETECT
-
 #include <cassert>
 #include <cstring>
 #include <string>
@@ -101,15 +95,21 @@ namespace AJson {
 			assert(m_type == VALUE_TYPE_ARRAY && index < m_a.size);
 			return m_a.e + index;
 		}
+		Value* getArrayElement(size_t index) const
+		{
+			assert(m_type == VALUE_TYPE_ARRAY && index < m_a.size);
+			return m_a.e + index;
+		}
 		size_t getObjectSize() const
 		{
 			assert(m_type == VALUE_TYPE_OBJECT); return m_o.size;
 		}
 		const char* getObjectKey(size_t) const;
 		size_t getObjectKeyLength(size_t) const;
+		Value* getObjectValue(size_t);
 		Value* getObjectValue(size_t) const;
 
-		std::string stringify();
+		std::string stringify() const;
 	private:
 		ValueType m_type = VALUE_TYPE_NULL;
 		union {
@@ -128,14 +128,13 @@ namespace AJson {
 		ParseResult parseArray();
 		ParseResult parseObject();
 
-		StringifyResult stringifyValue();
-		StringifyResult stringifyString(const char *, size_t);	
+		StringifyResult stringifyValue() const;
+		StringifyResult stringifyString(const char *, size_t) const;	
 
 		void freeMem();
 
 		bool parseHex4(const char*&, unsigned&);
 		void encode_utf8(unsigned u);
-		void stringHex4(unsigned);
 
 		static Context s_c;
 		static char s_table[];
