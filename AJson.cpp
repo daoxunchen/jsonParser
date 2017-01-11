@@ -209,7 +209,7 @@ namespace AJson {
 						STRING_ERROR(PARSE_INVALID_UNICODE_HEX);
 					if (u >= 0xd800 && u <= 0xdbff) {
 						unsigned ul;
-						if ((*p++) == '\\' && (*p++) == '\\' && (*p++) == 'u'
+						if ((*p++) == '\\' && (*p++) == 'u'
 							&& parseHex4(p, ul) && ul >= 0xdc00 && ul <= 0xdfff) {
 							u = 0x10000 | ((u & 0x7ff) << 10) | (ul & 0x3ff);
 						} else {
